@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ezan Vakti</title>
+    <!-- Premium Fonts: Cinzel for numbers, Outfit for text -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="mesh-background"></div>
+    <div class="noise-overlay"></div>
+
+    <header class="top-bar">
+        <div class="location-selector">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="location-icon"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            <select id="city-select" class="city-dropdown" disabled>
+                <option value="">Konum Bulunuyor...</option>
+            </select>
+        </div>
+    </header>
+
+    <main class="countdown-container">
+        <div class="content-wrapper">
+            <h1 class="target-label" id="target-label">Vakit Hesaplanıyor</h1>
+            <div class="time-display">
+                <div class="time-box">
+                    <span class="time-value" id="hours">00</span>
+                    <span class="time-unit">SAAT</span>
+                </div>
+                <div class="time-separator">:</div>
+                <div class="time-box">
+                    <span class="time-value" id="minutes">00</span>
+                    <span class="time-unit">DAKİKA</span>
+                </div>
+                <div class="time-separator">:</div>
+                <div class="time-box">
+                    <span class="time-value" id="seconds">00</span>
+                    <span class="time-unit">SANİYE</span>
+                </div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <p class="next-prayer-info" id="next-prayer-info">Lütfen bekleyin...</p>
+        </div>
+    </main>
+
+    <!-- Loader -->
+    <div class="loader-overlay" id="loader">
+        <div class="spinner"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
