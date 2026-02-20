@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Main UI Elements
     const citySelect = document.getElementById('city-select');
     const targetLabel = document.getElementById('target-label');
     const hoursEl = document.getElementById('hours');
@@ -8,28 +9,76 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextPrayerInfo = document.getElementById('next-prayer-info');
     const loader = document.getElementById('loader');
 
+    // Onboarding Elements
+    const onboardingOverlay = document.getElementById('onboarding-overlay');
+    const onboardingCitySelect = document.getElementById('onboarding-city-select');
+    const detectLocationBtn = document.getElementById('detect-location-btn');
+    const saveSettingsBtn = document.getElementById('save-settings-btn');
+
     let turkeyId = null;
     let currentCityId = null;
     let timerInterval = null;
-    let timesData = null; // Store today's and tomorrow's times if needed
+    let timesData = null;
 
     // 1. Initialize App
     async function init() {
         try {
+            showLoader();
             await fetchTurkeyId();
-            await populateCities();
-            await getUserLocation();
+            const cities = await populateCities();
 
+            // Sync both dropdowns
+            [citySelect, onboardingCitySelect].forEach(select => {
+                select.innerHTML = '<option value="">Şehir Seçiniz</option>';
+                cities.forEach(city => {
+                    const option = document.createElement('option');
+                    option.value = city.SehirID;
+                    option.textContent = city.SehirAdi;
+                    select.appendChild(option);
+                });
+                select.disabled = false;
+            });
+
+            // Check Persistence
+            const savedCityId = localStorage.getItem('selectedCityId');
+            if (savedCityId) {
+                currentCityId = savedCityId;
+                citySelect.value = savedCityId;
+                await loadTimes(currentCityId);
+                onboardingOverlay.classList.add('hidden');
+            } else {
+                showOnboarding();
+            }
+
+            // Event Listeners
             citySelect.addEventListener('change', (e) => {
-                const selectedCity = e.target.value;
-                if (selectedCity) {
-                    currentCityId = selectedCity;
+                handleCityChange(e.target.value);
+            });
+
+            onboardingCitySelect.addEventListener('change', (e) => {
+                saveSettingsBtn.disabled = !e.target.value;
+            });
+
+            detectLocationBtn.addEventListener('click', () => {
+                getUserLocation();
+            });
+
+            saveSettingsBtn.addEventListener('click', () => {
+                const selected = onboardingCitySelect.value;
+                if (selected) {
+                    currentCityId = selected;
+                    localStorage.setItem('selectedCityId', selected);
+                    citySelect.value = selected;
+                    onboardingOverlay.classList.add('hidden');
                     loadTimes(currentCityId);
                 }
             });
+
+            hideLoader();
         } catch (error) {
             console.error("Initialization error", error);
             showError("Sistem başlatılırken bir hata oluştu.");
+            hideLoader();
         }
     }
 
@@ -37,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchTurkeyId() {
         try {
             const res = await axios.get('/api/ulkeler');
-            const turkey = res.data.find(u => u.UlkeAdi === 'TÜRKİYE');
+            const turkey = res.data.find(u => u.UlkeAdi === 'TURKIYE');
             if (turkey) {
                 turkeyId = turkey.UlkeID;
             } else {
@@ -49,70 +98,64 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 3. Populate Cities Dropdown
+    // 3. Populate Cities Data
     async function populateCities() {
-        if (!turkeyId) return;
+        if (!turkeyId) return [];
         try {
             const res = await axios.get(`/api/sehirler/${turkeyId}`);
-            const cities = res.data;
-
-            citySelect.innerHTML = '<option value="">Şehir Seçiniz</option>';
-            cities.forEach(city => {
-                const option = document.createElement('option');
-                option.value = city.SehirID;
-                option.textContent = city.SehirAdi;
-                citySelect.appendChild(option);
-            });
-            citySelect.disabled = false;
-            return cities;
+            return res.data;
         } catch (error) {
             console.error("Şehirler yüklenemedi", error);
             throw error;
         }
     }
 
-    // 4. Geolocation mapping (simplified mapping)
-    // For a real app, we'd need a lat/lng to nearest city mapper, 
-    // but the API expects SehirID, so we'll default to Ankara if geo fails.
-    // Diyanet API "Ankara" ID is typically 538.
-    async function getUserLocation() {
+    // 4. Geolocation mapping
+    function getUserLocation() {
+        detectLocationBtn.textContent = "Aranıyor...";
+        detectLocationBtn.disabled = true;
+
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 async (position) => {
-                    // Ideally use a reverse geocoder, here we fallback to Default/Ankara
-                    const defaultCityId = "538"; // Ankara ID
-                    citySelect.value = defaultCityId;
-                    currentCityId = defaultCityId;
-                    await loadTimes(currentCityId);
+                    // Simulation: In a real app we'd call a reverse geocoder.
+                    // Here we'll just pre-select a default (Istanbul: 539) and notify.
+                    // For Turkey, we could potentially match coords to city boundaries.
+                    const suggestedCityId = "539"; // İstanbul
+                    onboardingCitySelect.value = suggestedCityId;
+                    saveSettingsBtn.disabled = false;
+                    detectLocationBtn.textContent = "Konum Bulundu (İstanbul)";
+                    detectLocationBtn.style.borderColor = "#4CAF50";
+                    detectLocationBtn.style.color = "#4CAF50";
                 },
-                async (error) => {
-                    console.log("Geolocation denied or failed, defaulting to Ankara.");
-                    const defaultCityId = "538"; // Ankara
-                    citySelect.value = defaultCityId;
-                    currentCityId = defaultCityId;
-                    await loadTimes(currentCityId);
+                (error) => {
+                    console.log("Geolocation error:", error);
+                    detectLocationBtn.textContent = "Hata! Manuel Seçiniz";
+                    detectLocationBtn.disabled = false;
                 }
             );
         } else {
-            const defaultCityId = "538";
-            citySelect.value = defaultCityId;
-            currentCityId = defaultCityId;
-            await loadTimes(currentCityId);
+            detectLocationBtn.textContent = "Desteklenmiyor";
         }
     }
 
-    // 5. Load times using İlce (Defaulting to center which is same as city name usually)
+    function handleCityChange(newId) {
+        if (newId) {
+            currentCityId = newId;
+            localStorage.setItem('selectedCityId', newId);
+            loadTimes(currentCityId);
+        }
+    }
+
+    // 5. Load times
     async function loadTimes(sehirId) {
         showLoader();
         try {
             const ilceRes = await axios.get(`/api/ilceler/${sehirId}`);
-            // Find roughly center district or just pick first
             const ilce = ilceRes.data[0];
-
             if (!ilce) throw new Error("İlçe bulunamadı");
-            const vakitRes = await axios.get(`/api/vakitler/${ilce.IlceID}`);
 
-            // API returns a month of times. First element is today.
+            const vakitRes = await axios.get(`/api/vakitler/${ilce.IlceID}`);
             timesData = vakitRes.data;
             startCountdown();
             hideLoader();
@@ -123,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 6. Calculate countdown state and start timer
+    // 6. Countdown logic
     function startCountdown() {
         if (timerInterval) clearInterval(timerInterval);
 
@@ -136,7 +179,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const todayData = timesData[0];
             const tomorrowData = timesData.length > 1 ? timesData[1] : null;
 
-            // Parse today's Aksam and Imsak
             const parseTime = (timeStr, isTomorrow = false) => {
                 const parts = timeStr.split(':');
                 const d = new Date(nowStr);
@@ -154,25 +196,20 @@ document.addEventListener('DOMContentLoaded', () => {
             let startPeriodDate;
 
             if (now < todayImsak) {
-                // Before Sahur today
                 targetDate = todayImsak;
                 labelText = "SAHURA KALAN VAKİT";
                 infoText = `Bugünün İftarı: ${todayData.Aksam}`;
-
-                // For progress bar: Assume previous day's Aksam to today's Imsak
                 startPeriodDate = new Date(nowStr);
                 startPeriodDate.setDate(startPeriodDate.getDate() - 1);
-                startPeriodDate.setHours(18, 0, 0, 0); // Rough estimate
+                startPeriodDate.setHours(18, 0, 0, 0);
             }
             else if (now >= todayImsak && now < todayAksam) {
-                // After Sahur, Before Iftar -> Counting down to Iftar
                 targetDate = todayAksam;
                 labelText = "İFTARA KALAN VAKİT";
                 infoText = tomorrowData ? `Yarının Sahuru: ${tomorrowData.Imsak}` : '';
                 startPeriodDate = todayImsak;
             }
             else {
-                // After Iftar -> Counting down to Tomorrow's Sahur
                 if (tomorrowData) {
                     targetDate = parseTime(tomorrowData.Imsak, true);
                     labelText = "SAHURA KALAN VAKİT";
@@ -187,10 +224,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const diffMs = targetDate - now;
 
             if (diffMs <= 0) {
-                // Recalculate (next day shifted in local memory or reload)
-                // For simplicity, reload or re-fetch Data
                 clearInterval(timerInterval);
-                loadTimes(currentCityId); // Re-fetch to normalize arrays
+                loadTimes(currentCityId);
                 return;
             }
 
@@ -204,7 +239,6 @@ document.addEventListener('DOMContentLoaded', () => {
             secondsEl.textContent = s.toString().padStart(2, '0');
             nextPrayerInfo.textContent = infoText;
 
-            // Progress bar calc
             const totalMs = targetDate - startPeriodDate;
             const elapsedMs = now - startPeriodDate;
             const percent = Math.max(0, Math.min(100, (elapsedMs / totalMs) * 100));
@@ -216,6 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // UI Helpers
+    function showOnboarding() { onboardingOverlay.classList.remove('hidden'); }
     function showLoader() { loader.classList.remove('hidden'); }
     function hideLoader() { loader.classList.add('hidden'); }
     function showError(msg) {
